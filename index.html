@@ -385,6 +385,17 @@ textarea.grow{display:block;box-sizing:border-box;width:100%;min-width:0;min-hei
 .tier{padding:1px 0;}
 .tier + .tier{border-top:1px solid var(--line-2);margin-top:13px;padding-top:13px;}
 .tier-label{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2);margin-bottom:5px;}
+.chore-list{list-style:none;margin:0 0 12px;padding:0;}
+.chore-list li{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-2);}
+.chore-list li:last-child{border-bottom:0;}
+.chore-kid{flex:none;align-self:center;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#fff;background:var(--accent-2);padding:3px 8px;border-radius:999px;white-space:nowrap;}
+.chore-list li.done .chore-kid{background:var(--line);}
+.chore-text{width:100%;box-sizing:border-box;border:0;border-bottom:1.5px solid var(--line);background:transparent;outline:none;color:var(--ink);font:inherit;padding:6px 0;margin-bottom:11px;}
+.chore-controls{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;}
+.chore-who,.chore-when{display:flex;gap:6px;flex-wrap:wrap;}
+.chip-sel{border:1px solid var(--line);background:var(--card-2);color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer;}
+.chip-sel.sel{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.chore-go{margin-left:auto;}
 .custom{background:var(--card-2);}
 .sec-list{list-style:none;margin:0 0 14px;padding:0;}
 .sec-list li{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line-2);}
@@ -653,8 +664,12 @@ function fallback(){ try{ localStorage.setItem("planner:__t","1"); localStorage.
 
 /* ---------- date helpers ---------- */
 const MS=86400000, CYCLE=91;
-const VERSION="1.19.0"; // semantic versioning: MAJOR.MINOR.PATCH
+const VERSION="1.20.1"; // semantic versioning: MAJOR.MINOR.PATCH
 const VERSION_HISTORY=[
+  ["1.20.1","Fix: import no longer lets a pending save place stale data on tomorrow"],
+  ["1.20.0","Kids' Chores (assign to a child, set for today or tomorrow); House + Garden"],
+  ["1.19.2","Evening Reflection prompt: resistance & the value it protects"],
+  ["1.19.1","Re-framing prompts: problem → puzzle"],
   ["1.19.0","Removed quote box; Tasks → Actions; Lighten the Load → Re-framing"],
   ["1.18.0","Tasks combined into one box; simpler header; weekend shading + growth week in Mini Year"],
   ["1.17.0","Perspective banner atop the day; gear moved to top-right"],
@@ -723,8 +738,9 @@ function cadence(k){
 /* ---------- day model ---------- */
 const blankFocus=()=>({text:"",complete:false,est:0,pomo:0});
 const FAMILY=[{k:"kristin",n:"Kristin",r:"wife"},{k:"henry",n:"Henry James"},{k:"emily",n:"Emily Jane"},{k:"penelope",n:"Penelope Renee"}];
-const SECTIONS=[{k:"tasks",n:"Actions"},{k:"friction",n:"Re-framing"},{k:"move",n:"Movement"},{k:"family",n:"Family Intentions"},{k:"house",n:"House to Habitat"},{k:"mem",n:"Memories + Moments"},{k:"places",n:"Places"},{k:"disc",n:"Discoveries + Delights"},{k:"ideas",n:"Ideas"},{k:"reflect",n:"Evening Reflection"},{k:"plan",n:"Plan Tomorrow"}];
-const emptyDay=()=>({mit:blankFocus(),sec:[blankFocus(),blankFocus()],tasks:[],reflection:"",improve:"",photos:[],wows:[],train:{cali:false,run:false},family:{},friction:{heavy:"",lift:""},layout:null});
+const KIDS=FAMILY.filter(m=>m.k!=="kristin");
+const SECTIONS=[{k:"tasks",n:"Actions"},{k:"friction",n:"Re-framing"},{k:"move",n:"Movement"},{k:"family",n:"Family Intentions"},{k:"chores",n:"Kids' Chores"},{k:"house",n:"House + Garden"},{k:"mem",n:"Memories + Moments"},{k:"places",n:"Places"},{k:"disc",n:"Discoveries + Delights"},{k:"ideas",n:"Ideas"},{k:"reflect",n:"Evening Reflection"},{k:"plan",n:"Plan Tomorrow"}];
+const emptyDay=()=>({mit:blankFocus(),sec:[blankFocus(),blankFocus()],tasks:[],reflection:"",improve:"",photos:[],wows:[],train:{cali:false,run:false},family:{},friction:{heavy:"",lift:""},chores:[],layout:null});
 function hydrate(raw){
   const d=emptyDay(); if(!raw) return d;
   try{
@@ -738,6 +754,7 @@ function hydrate(raw){
     d.train={cali:!!(o.train&&o.train.cali),run:!!(o.train&&o.train.run)};
     d.family=(o.family&&typeof o.family==="object")?{...o.family}:{};
     d.friction={heavy:(o.friction&&o.friction.heavy)||"",lift:(o.friction&&o.friction.lift)||""};
+    d.chores=Array.isArray(o.chores)?o.chores.map(c=>({id:c.id||uid(),text:c.text||"",who:c.who||"",complete:!!c.complete})):[];
     d.layout=(o.layout&&typeof o.layout==="object")?{...o.layout}:null;
   }catch(e){}
   return d;
@@ -770,7 +787,7 @@ function fileToThumb(file,max=256,quality=0.62){
 
 /* ---------- state ---------- */
 const DEFAULT_PERSPECTIVE="Choose work you love — and no day feels like work.";
-const S={ start:todayKey(), view:"today", cur:todayKey(), day:emptyDay(), tomorrow:emptyDay(), index:{}, lightbox:null, layouts:{}, customOpen:false, places:[], placesOpen:false, projects:[], ideas:[], ideasOpen:false, order:SECTIONS.map(s=>s.k), expanded:new Set(), collapsed:new Set(), puntFor:null, perspective:DEFAULT_PERSPECTIVE };
+const S={ start:todayKey(), view:"today", cur:todayKey(), day:emptyDay(), tomorrow:emptyDay(), index:{}, lightbox:null, layouts:{}, customOpen:false, places:[], placesOpen:false, projects:[], ideas:[], ideasOpen:false, order:SECTIONS.map(s=>s.k), expanded:new Set(), collapsed:new Set(), puntFor:null, perspective:DEFAULT_PERSPECTIVE, choreAdd:{who:KIDS[0]?KIDS[0].k:null,when:"today"} };
 let projTimer=null, ideaTimer=null, perspTimer=null;
 let saveTimer=null;
 
@@ -810,6 +827,7 @@ function isEmpty(k){
     case "move": return !day.train.cali && !day.train.run;
     case "family": return FAMILY.every(m=>!((day.family[m.k]||"").trim()));
     case "house": return S.projects.length===0;
+    case "chores": return (day.chores||[]).length===0;
     case "mem": return day.photos.length===0;
     case "places": return S.places.filter(p=>p.date===S.cur).length===0;
     case "disc": return day.wows.length===0;
@@ -862,6 +880,11 @@ async function puntTask(taskId,targetKey){
   await patchDay(targetKey,d=>{ d.tasks.push({id:uid(),text,complete:false}); });
   S.day.tasks=S.day.tasks.filter(x=>x.id!==taskId); saveNow(); renderToday();
 }
+async function puntChore(choreId,targetKey){
+  const list=S.day.chores||[]; const ch=list.find(x=>x.id===choreId); if(!ch) return; const text=ch.text, who=ch.who;
+  await patchDay(targetKey,d=>{ if(!d.chores) d.chores=[]; d.chores.push({id:uid(),text,who,complete:false}); });
+  S.day.chores=list.filter(x=>x.id!==choreId); saveNow(); renderToday();
+}
 
 /* ---- per-box history ---- */
 async function loadAllDays(){
@@ -885,6 +908,7 @@ function historyEntries(k,days){
       case "friction": if(day.friction.heavy.trim()||day.friction.lift.trim()) out.push({date,text:(day.friction.heavy||"—")+(day.friction.lift?"  →  "+day.friction.lift:"")}); break;
       case "move": { const a=[]; if(day.train.cali)a.push("Calisthenics"); if(day.train.run)a.push("Running"); if(a.length) out.push({date,text:a.join(" + ")}); break; }
       case "family": FAMILY.forEach(m=>{ const v=(day.family[m.k]||"").trim(); if(v) out.push({date,text:m.n+": "+v}); }); break;
+      case "chores": (day.chores||[]).forEach(ch=>{ if(ch.text.trim()){ const kid=FAMILY.find(m=>m.k===ch.who); out.push({date,text:(kid?kid.n.split(" ")[0]:"")+": "+ch.text,done:ch.complete}); } }); break;
       case "mem": day.photos.forEach(p=>out.push({date,photo:p.data,text:p.caption||""})); break;
       case "disc": day.wows.forEach(wv=>out.push({date,text:wv.text,time:wv.time})); break;
       case "reflect": if(day.reflection.trim()) out.push({date,text:day.reflection}); if(day.improve.trim()) out.push({date,text:"Improve: "+day.improve}); break;
@@ -1122,10 +1146,10 @@ function renderToday(){
 
   // lighten the load (cumbersome -> easier lift)
   const cFr=el(`<section class="card friction reveal d4"><div class="card-eyebrow">△ Re-framing</div>
-    <label class="fr-label">What feels most cumbersome today?</label>
-    <textarea class="fr-input heavy grow" rows="1" placeholder="The thing that feels heavy…"></textarea>
-    <label class="fr-label">What would make it an easier lift?</label>
-    <textarea class="fr-input lift grow" rows="1" placeholder="One move that lightens it…"></textarea>
+    <label class="fr-label">What's the one obstacle today I'm viewing as a 'problem'?</label>
+    <textarea class="fr-input heavy grow" rows="1" placeholder="The thing that feels like a problem…"></textarea>
+    <label class="fr-label">How would I approach it as a 'puzzle' to be solved instead?</label>
+    <textarea class="fr-input lift grow" rows="1" placeholder="Seen as a puzzle, the first move is…"></textarea>
   </section>`);
   const frH=cFr.querySelector(".heavy"); frH.value=S.day.friction.heavy;
   frH.addEventListener("input",()=>{ S.day.friction.heavy=frH.value; scheduleSave(); });
@@ -1156,10 +1180,10 @@ function renderToday(){
   cards.family=cF;
 
   // house to habitat — prioritize the next home project
-  const cH=el(`<section class="card house reveal d7"><div class="card-eyebrow">⌂ House to Habitat</div>
+  const cH=el(`<section class="card house reveal d7"><div class="card-eyebrow">⌂ House + Garden</div>
     <div class="next-project"></div>
     <ul class="proj-list"></ul>
-    <div class="proj-add"><span class="muted">+</span><input placeholder="Add a home project…" /><button class="add-btn" style="display:none">Add</button></div>
+    <div class="proj-add"><span class="muted">+</span><input placeholder="Add a house or garden project…" /><button class="add-btn" style="display:none">Add</button></div>
   </section>`);
   const nextP=S.projects.find(p=>!p.done);
   const nb=cH.querySelector(".next-project");
@@ -1181,6 +1205,59 @@ function renderToday(){
   prjInp.addEventListener("keydown",e=>{ if(e.key==="Enter") addProj(); });
   prjAdd.onclick=addProj;
   cards.house=cH;
+
+  // kids' chores
+  if(!S.day.chores) S.day.chores=[];
+  const cCh=el(`<section class="card chores reveal d7"><div class="card-eyebrow">◳ Kids' Chores</div>
+    <ul class="chore-list"></ul>
+    <div class="chore-add">
+      <input class="chore-text" placeholder="Add a chore…" />
+      <div class="chore-controls">
+        <div class="chore-who"></div>
+        <div class="chore-when"></div>
+        <button class="add-btn chore-go">Add</button>
+      </div>
+    </div></section>`);
+  const choreList=cCh.querySelector(".chore-list");
+  S.day.chores.forEach(ch=>{
+    const kid=FAMILY.find(m=>m.k===ch.who); const first=kid?kid.n.split(" ")[0]:"";
+    const li=el(`<li class="${ch.complete?"done":""}"><button class="box sm ${ch.complete?"checked":""}">${ch.complete?"✓":""}</button><span class="chore-kid"></span><textarea class="task-input grow" rows="1"></textarea><button class="punt-btn" aria-label="Move forward">→</button><button class="task-del" aria-label="Delete">×</button></li>`);
+    li.querySelector(".chore-kid").textContent=first;
+    const inp=li.querySelector(".task-input"); inp.value=ch.text;
+    inp.addEventListener("input",()=>{ ch.text=inp.value; scheduleSave(); });
+    li.querySelector(".box").onclick=()=>{ ch.complete=!ch.complete; saveNow(); renderToday(); };
+    li.querySelector(".punt-btn").onclick=()=>{ S.puntFor=(S.puntFor==="chore"+ch.id?null:"chore"+ch.id); renderToday(); };
+    li.querySelector(".task-del").onclick=()=>{ S.day.chores=S.day.chores.filter(x=>x.id!==ch.id); saveNow(); renderToday(); };
+    choreList.appendChild(li);
+    if(S.puntFor==="chore"+ch.id) choreList.appendChild(puntBar((tk)=>puntChore(ch.id,tk)));
+  });
+  // who chips
+  const whoWrap=cCh.querySelector(".chore-who");
+  KIDS.forEach(kid=>{
+    const chip=el(`<button class="chip-sel ${S.choreAdd.who===kid.k?"sel":""}" data-who="${kid.k}"></button>`);
+    chip.textContent=kid.n.split(" ")[0];
+    chip.onclick=()=>{ S.choreAdd.who=kid.k; whoWrap.querySelectorAll(".chip-sel").forEach(c=>c.classList.toggle("sel",c.dataset.who===kid.k)); };
+    whoWrap.appendChild(chip);
+  });
+  // when chips
+  const whenWrap=cCh.querySelector(".chore-when");
+  [["today","Today"],["tomorrow","Tomorrow"]].forEach(([val,lab])=>{
+    const chip=el(`<button class="chip-sel ${S.choreAdd.when===val?"sel":""}" data-when="${val}">${lab}</button>`);
+    chip.onclick=()=>{ S.choreAdd.when=val; whenWrap.querySelectorAll(".chip-sel").forEach(c=>c.classList.toggle("sel",c.dataset.when===val)); };
+    whenWrap.appendChild(chip);
+  });
+  const chTxt=cCh.querySelector(".chore-text"), chGo=cCh.querySelector(".chore-go");
+  const addChore=async()=>{
+    const v=chTxt.value.trim(); if(!v||!S.choreAdd.who) return;
+    const chore={id:uid(),text:v,who:S.choreAdd.who,complete:false};
+    if(S.choreAdd.when==="tomorrow"){ await patchDay(addDays(S.cur,1),d=>{ if(!d.chores)d.chores=[]; d.chores.push(chore); }); }
+    else { S.day.chores.push(chore); saveNow(); }
+    renderToday();
+    setTimeout(()=>{const n=document.querySelector(".chore-text"); if(n)n.focus();},0);
+  };
+  chTxt.addEventListener("keydown",e=>{ if(e.key==="Enter") addChore(); });
+  chGo.onclick=addChore;
+  cards.chores=cCh;
 
   // moments
   const c4=el(`<section class="card moments reveal d8"><div class="card-eyebrow">▣ Memories + Moments</div>
@@ -1307,7 +1384,8 @@ function renderToday(){
 
   // reflection
   const c6=el(`<section class="card reflect reveal d12"><div class="card-eyebrow">☾ Evening Reflection</div>
-    <textarea class="lined grow" rows="2" placeholder="Today I…"></textarea>
+    <label class="mini-prompt">Where did I feel resistance today — and what value or priority was it trying to protect?</label>
+    <textarea class="lined grow" rows="2" placeholder="A moment of resistance was…"></textarea>
     <label class="mini-prompt">One thing to improve tomorrow</label>
     <textarea class="improve grow" rows="1" placeholder="Tomorrow I'll…"></textarea></section>`);
   const ta=c6.querySelector(".lined"); ta.value=S.day.reflection;
@@ -1470,12 +1548,16 @@ async function exportData(){
 }
 async function importData(file){
   if(!file) return;
+  // cancel any pending debounced saves so stale in-memory data can't clobber the restore
+  clearTimeout(saveTimer); clearTimeout(perspTimer); clearTimeout(projTimer); clearTimeout(ideaTimer);
   try{
     const text=await file.text(); const parsed=JSON.parse(text);
     const data=parsed&&parsed.data?parsed.data:parsed;
     const keys=Object.keys(data).filter(k=>k.startsWith("planner:"));
     if(!keys.length){ alert("That file doesn't look like a Micro Year backup."); return; }
     for(const k of keys) await store.set(k,data[k]);
+    // clear timers again in case an edit fired one while the file was being chosen
+    clearTimeout(saveTimer); clearTimeout(perspTimer); clearTimeout(projTimer); clearTimeout(ideaTimer);
     await loadConfig(); S.day=await loadDay(S.cur); S.tomorrow=await loadDay(addDays(S.cur,1));
     render(); alert("Restored "+keys.length+" item(s). Your planner is back.");
   }catch(e){ alert("Couldn't read that backup file — make sure it's the .json you exported."); }
