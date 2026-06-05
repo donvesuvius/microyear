@@ -296,11 +296,11 @@ textarea.grow{display:block;box-sizing:border-box;width:100%;min-width:0;min-hei
 .idea-add input{flex:1;border:0;background:transparent;outline:none;color:var(--ink);}
 .idea-add input::placeholder{color:#b6a890;}
 .idea-list{list-style:none;margin:0;padding:0;}
-.idea-list li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2);}
+.idea-list li{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2);}
 .idea-list li:last-child{border-bottom:0;}
-.idea-spark{flex:none;color:var(--accent);}
-.idea-text{flex:1;border:0;background:transparent;outline:none;color:var(--ink);}
-.idea-date{flex:none;font-family:'Caveat',cursive;font-size:15px;color:var(--accent-2);}
+.idea-spark{flex:none;color:var(--accent);margin-top:3px;}
+.idea-text{flex:1;min-width:0;border:0;background:transparent;outline:none;color:var(--ink);}
+.idea-date{flex:none;align-self:flex-start;margin-top:3px;font-family:'Caveat',cursive;font-size:15px;color:var(--accent-2);}
 .idea-del{flex:none;border:0;background:transparent;color:#c4b69e;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:6px;}
 .idea-del:hover{color:var(--accent);background:var(--accent-soft);}
 .ideas-all{margin-top:12px;border:1px solid var(--line);background:var(--card);color:var(--ink-2);font:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:999px;cursor:pointer;}
@@ -437,6 +437,19 @@ textarea.grow{display:block;box-sizing:border-box;width:100%;min-width:0;min-hei
 
 /* history sheet */
 .hist-sheet{position:relative;background:var(--card);border-radius:16px;padding:20px 18px 14px;max-width:min(94vw,520px);max-height:80vh;overflow:auto;box-shadow:0 30px 80px -20px rgba(0,0,0,.5);}
+.search-sheet{position:relative;background:var(--card);border-radius:16px;padding:18px 16px 14px;width:min(94vw,520px);max-height:82vh;overflow:auto;box-shadow:0 30px 80px -20px rgba(0,0,0,.5);}
+.search-sheet .lightbox-x{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:20px;line-height:1;display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.35);z-index:3;cursor:pointer;}
+.search-head{padding-right:46px;margin-bottom:10px;}
+.search-input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:11px;background:var(--card-2);color:var(--ink);font:inherit;font-size:16px;padding:11px 13px;outline:none;}
+.search-input::placeholder{color:#b6a890;}
+.search-count{font-size:12px;color:var(--ink-2);margin:0 0 10px;}
+.search-list{list-style:none;margin:0;padding:0;}
+.search-row{padding:9px 0;border-bottom:1px solid var(--line-2);}
+.search-row:last-child{border-bottom:0;}
+.search-row.tappable{cursor:pointer;}
+.search-row.tappable:active{background:var(--card-2);}
+.search-meta{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-2);margin-bottom:2px;}
+.search-text{display:block;font-size:14.5px;color:var(--ink);line-height:1.4;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:300;word-break:break-word;}
 .hist-sheet .lightbox-x,.ver-sheet .lightbox-x{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:20px;line-height:1;display:grid;place-items:center;box-shadow:0 3px 10px rgba(0,0,0,.35);z-index:3;cursor:pointer;}
 .hist-loading{padding:30px 10px;text-align:center;color:var(--ink-2);}
 .hist-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px;padding-right:46px;}
@@ -592,6 +605,7 @@ textarea.grow{display:block;box-sizing:border-box;width:100%;min-width:0;min-hei
           <button id="tab-today" class="on">Today</button>
           <button id="tab-year">Mini Year</button>
         </div>
+        <button id="search-btn" class="cust-icon" aria-label="Search"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
         <button id="cust-btn" class="cust-icon" aria-label="Customize sections">⚙<span class="cust-badge" id="cust-badge"></span></button>
       </div>
     </div>
@@ -664,8 +678,10 @@ function fallback(){ try{ localStorage.setItem("planner:__t","1"); localStorage.
 
 /* ---------- date helpers ---------- */
 const MS=86400000, CYCLE=91;
-const VERSION="1.20.1"; // semantic versioning: MAJOR.MINOR.PATCH
+const VERSION="1.21.0"; // semantic versioning: MAJOR.MINOR.PATCH
 const VERSION_HISTORY=[
+  ["1.21.0","Search across every day and list; tap a result to jump to that day"],
+  ["1.20.2","Ideas stay on their own day; idea text wraps; capture time shown"],
   ["1.20.1","Fix: import no longer lets a pending save place stale data on tomorrow"],
   ["1.20.0","Kids' Chores (assign to a child, set for today or tomorrow); House + Garden"],
   ["1.19.2","Evening Reflection prompt: resistance & the value it protects"],
@@ -831,7 +847,7 @@ function isEmpty(k){
     case "mem": return day.photos.length===0;
     case "places": return S.places.filter(p=>p.date===S.cur).length===0;
     case "disc": return day.wows.length===0;
-    case "ideas": return S.ideas.length===0;
+    case "ideas": return S.ideas.filter(i=>i.date===S.cur).length===0;
     case "reflect": return !day.reflection.trim() && !day.improve.trim();
     case "plan": return !S.tomorrow.mit.text.trim();
     default: return false;
@@ -915,6 +931,55 @@ function historyEntries(k,days){
     }
   });
   return out;
+}
+function searchAll(q,days){
+  const out=[]; const hit=s=>typeof s==="string"&&s.toLowerCase().includes(q);
+  days.forEach(({date,day})=>{
+    if(hit(day.mit.text)) out.push({date,section:"Actions · WMM",text:day.mit.text});
+    day.sec.forEach(s=>{ if(hit(s.text)) out.push({date,section:"Actions · Secondary",text:s.text}); });
+    day.tasks.forEach(t=>{ if(hit(t.text)) out.push({date,section:"Actions · Tertiary",text:t.text}); });
+    if(hit(day.friction.heavy)) out.push({date,section:"Re-framing",text:day.friction.heavy});
+    if(hit(day.friction.lift)) out.push({date,section:"Re-framing",text:day.friction.lift});
+    FAMILY.forEach(m=>{ const v=day.family[m.k]; if(hit(v)) out.push({date,section:"Family · "+m.n.split(" ")[0],text:v}); });
+    (day.chores||[]).forEach(ch=>{ if(hit(ch.text)){ const kid=FAMILY.find(x=>x.k===ch.who); out.push({date,section:"Chores · "+(kid?kid.n.split(" ")[0]:""),text:ch.text}); } });
+    (day.wows||[]).forEach(wv=>{ if(hit(wv.text)) out.push({date,section:"Discoveries",text:wv.text}); });
+    (day.photos||[]).forEach(p=>{ if(hit(p.caption)) out.push({date,section:"Memories",text:p.caption}); });
+    if(hit(day.reflection)) out.push({date,section:"Reflection",text:day.reflection});
+    if(hit(day.improve)) out.push({date,section:"Reflection · Improve",text:day.improve});
+  });
+  S.ideas.forEach(it=>{ if(hit(it.text)) out.push({date:it.date,section:"Ideas",text:it.text}); });
+  S.places.forEach(p=>{ if(hit(p.name)) out.push({date:p.date||null,section:"Places",text:p.name}); });
+  S.projects.forEach(p=>{ if(hit(p.name)) out.push({date:null,section:"House + Garden",text:p.name}); });
+  out.sort((a,b)=>{ const av=a.date||"", bv=b.date||""; return bv<av?-1:bv>av?1:0; });
+  return out;
+}
+async function openSearch(){
+  const o=document.getElementById("overlay");
+  o.innerHTML=`<div class="lightbox"><div class="search-sheet"><button class="lightbox-x">×</button>
+    <div class="search-head"><input class="search-input" type="search" placeholder="Search everything…" /></div>
+    <div class="search-count">Type at least 2 letters.</div><ul class="search-list"></ul></div></div>`;
+  const close=()=>{ o.innerHTML=""; };
+  o.querySelector(".lightbox").onclick=close;
+  o.querySelector(".search-sheet").onclick=e=>e.stopPropagation();
+  o.querySelector(".lightbox-x").onclick=close;
+  const input=o.querySelector(".search-input"), countEl=o.querySelector(".search-count"), listEl=o.querySelector(".search-list");
+  let days=null, t=null;
+  const run=async()=>{
+    const q=input.value.trim().toLowerCase(); listEl.innerHTML="";
+    if(q.length<2){ countEl.textContent="Type at least 2 letters."; return; }
+    if(!days){ countEl.textContent="Searching…"; days=await loadAllDays(); }
+    const res=searchAll(q,days);
+    countEl.textContent=res.length?`${res.length} match${res.length===1?"":"es"}`:"No matches.";
+    res.slice(0,200).forEach(r=>{
+      const li=el(`<li class="search-row ${r.date?"tappable":""}"><span class="search-meta"></span><span class="search-text"></span></li>`);
+      li.querySelector(".search-meta").textContent=(r.date?shortDate(r.date)+" · ":"")+r.section;
+      li.querySelector(".search-text").textContent=r.text;
+      if(r.date) li.onclick=()=>{ close(); goto(r.date).then(()=>setView("today")); };
+      listEl.appendChild(li);
+    });
+  };
+  input.addEventListener("input",()=>{ clearTimeout(t); t=setTimeout(run,160); });
+  setTimeout(()=>input.focus(),60);
 }
 async function openHistory(k){
   const meta=SECTIONS.find(s=>s.k===k)||{n:k};
@@ -1368,18 +1433,20 @@ function renderToday(){
   ideaInp.addEventListener("keydown",e=>{ if(e.key==="Enter") addIdea(); });
   ideaAdd.onclick=addIdea;
   const ideaList=cI.querySelector(".idea-list");
-  const sorted=[...S.ideas].sort((a,b)=>(b.ts||0)-(a.ts||0));
-  const shown=S.ideasOpen?sorted:sorted.slice(0,6);
+  const dayIdeas=S.ideas.filter(it=>it.date===S.cur);
+  const sorted=[...dayIdeas].sort((a,b)=>(b.ts||0)-(a.ts||0));
+  const shown=S.ideasOpen?sorted:sorted.slice(0,8);
   shown.forEach(it=>{
     const li=el(`<li><span class="idea-spark">✲</span><textarea class="idea-text grow" rows="1"></textarea><span class="idea-date"></span><button class="idea-del">×</button></li>`);
     const inp=li.querySelector(".idea-text"); inp.value=it.text;
-    inp.addEventListener("input",()=>{ it.text=inp.value; scheduleIdeaSave(); });
-    li.querySelector(".idea-date").textContent=shortDate(it.date);
+    inp.addEventListener("input",()=>{ it.text=inp.value; scheduleIdeaSave(); grow(inp); });
+    let tlabel=""; try{ if(it.ts) tlabel=new Date(it.ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }catch(e){}
+    li.querySelector(".idea-date").textContent=tlabel;
     li.querySelector(".idea-del").onclick=()=>{ S.ideas=S.ideas.filter(x=>x.id!==it.id); saveIdeas(); renderToday(); };
     ideaList.appendChild(li);
   });
   const ideasAllBtn=cI.querySelector(".ideas-all");
-  if(sorted.length>6){ ideasAllBtn.style.display=""; ideasAllBtn.textContent=S.ideasOpen?"Show fewer":`Show all ideas (${sorted.length})`; ideasAllBtn.onclick=()=>{ S.ideasOpen=!S.ideasOpen; renderToday(); }; }
+  if(sorted.length>8){ ideasAllBtn.style.display=""; ideasAllBtn.textContent=S.ideasOpen?"Show fewer":`Show all today's ideas (${sorted.length})`; ideasAllBtn.onclick=()=>{ S.ideasOpen=!S.ideasOpen; renderToday(); }; }
   cards.ideas=cI;
 
   // reflection
@@ -1572,6 +1639,7 @@ function growAll(){ try{ document.querySelectorAll("textarea.grow").forEach(grow
 function render(){ if(S.view==="today") renderToday(); else renderYear(); renderOverlay(); setFootStatus(); updateStrip();
   const c=cadence(S.cur); const fc=document.getElementById("footcadence"); if(fc) fc.textContent=`MY${c.my} · MW${c.mw} · GW${c.gwk}`;
   if(window.requestAnimationFrame) requestAnimationFrame(growAll); else growAll();
+  setTimeout(growAll,60);
 }
 
 /* ---------- manifest (inline) ---------- */
@@ -1584,6 +1652,7 @@ function render(){ if(S.view==="today") renderToday(); else renderYear(); render
 /* ---------- wire chrome + boot ---------- */
 document.getElementById("tab-today").onclick=()=>setView("today");
 document.getElementById("cust-btn").onclick=()=>{ S.customOpen=!S.customOpen; renderToday(); };
+document.getElementById("search-btn").onclick=openSearch;
 document.getElementById("tab-year").onclick=()=>setView("year");
 document.getElementById("prev").onclick=()=>goto(addDays(S.cur,-1));
 document.getElementById("next").onclick=()=>goto(addDays(S.cur,1));
